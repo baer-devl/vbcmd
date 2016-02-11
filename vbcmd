@@ -1,0 +1,89 @@
+#!/bin/bash
+
+if [[ $# -le 0 ]];then
+  echo "usage: vbcmd [vms|rvms|displays|kill|run|end|stop|empty]"
+  exit 0
+fi
+
+if [[ $1 == "displays" || $1 == "d" ]];then
+  ps uww -C Xorg | grep quiet
+  exit 0
+fi
+
+if [[ $1 == "vms" || $1 == "v" ]];then
+  vboxmanage list vms
+  exit 0
+fi
+
+if [[ $1 == "rvms" || $1 == "r" ]];then
+  vboxmanage list runningvms
+  exit 0
+fi
+
+if [[ $1 == "kill" ]];then
+  if [[ $# -ne 2 ]];then
+    echo "usage: vbcmd kill <display nr>"
+    exit 1
+  fi
+  pid=$(ps uww -C Xorg | grep ':'$2 | awk '{print $2}')
+  sudo kill $pid
+  exit 0
+fi
+
+if [[ $1 == "end" ]];then
+  if [[ $# -ne 3 ]];then
+    echo "usage: vbcmd end <virtualbox name> <display nr>"
+    exit 1
+  fi
+  tty=$(ps uww -C Xorg | grep /usr/bin/X | awk '{print $7}' | sed -e 's/.*\(.\)$/\1/')
+  vboxmanage controlvm $2 savestate &
+  pid=$!
+  sudo chvt $3
+  wait $pid
+  sudo chvt $tty
+  pid=$(ps uww -C Xorg | grep ':'$3 | awk '{print $2}')
+  sudo kill $pid
+  exit 0
+fi
+
+if [[ $1 == "run" ]];then
+  if [[ $# -ne 3 ]];then
+    echo "usage: vbcmd run <virtualbox name> <display nr>"
+    exit 1
+  fi
+  sudo -b X -quiet -nolisten tcp -noreset :$3 vt$3 > /dev/null 2>&1
+  DISPLAY=:$3 vboxmanage startvm $2
+  exit 0
+fi
+
+if [[ $1 == "stop" ]];then
+  if [[ $# -ne 3 ]];then
+    echo "usage: vbcmd stop <virtualbox name> <display nr>"
+    exit 1
+  fi
+  tty=$(ps uww -C Xorg | grep /usr/bin/X | awk '{print $7}' | sed -e 's/.*\(.\)$/\1/')
+  vboxmanage controlvm $2 savestate &
+  pid=$!
+  sudo chvt $3
+  wait $pid
+  sudo chvt $tty
+  exit 0
+fi
+
+if [[ $1 == "empty" ]];then
+  if [[ $# -ne 2 ]];then
+    echo "usage: vbcmd empty <display nr>"
+    exit 1
+  fi
+  tty=$(ps uww -C Xorg | grep /usr/bin/X | awk '{print $7}' | sed -e 's/.*\(.\)$/\1/')
+  sudo -b X -quiet -nolisten tcp -noreset :$2 vt$2 > /dev/null 2>&1
+  sleep 1
+  sudo chvt $tty
+  echo "use 'DISPLAY=:$2 <application>' to start an application on the new display"
+  exit 0
+fi
+
+
+echo "unknown cmd :("
+exit 1
+
